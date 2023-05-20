@@ -1,6 +1,7 @@
 
 import cv2
 import numpy as np
+import os
 import datetime
 
 # Global variables
@@ -70,7 +71,9 @@ while cap.isOpened():
     if key == ord('s'):
         if crop_mode and len(clicked_points) >= 3:
             timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            save_path = "/home/enchi/Imágenes/cropped_image{}.jpg".format(timestamp)
+            save_directory = os.path.abspath(os.path.join(os.getcwd(), "..", "img"))  # Replace "desired_directory" with your desired directory name
+            os.makedirs(save_directory, exist_ok=True)
+            save_path = os.path.join(save_directory, "cropped_image_{}.jpg".format(timestamp))
             cv2.imwrite(save_path, cropped_frame)
             print("Cropped image saved as:", save_path)
         else:
