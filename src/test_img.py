@@ -17,44 +17,57 @@ def get_circle(event, x, y, flags, param):
     
 
 def crop_image(image, points):
-    mask = np.zeros_like(image)
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
     points = np.array(points)
     cv2.fillPoly(mask, [points], (255, 255, 255))
     neighborhood_size = 5
     dilated_mask = cv2.dilate(mask, np.ones((neighborhood_size, neighborhood_size), np.uint8))
     neighborhood = cv2.absdiff(dilated_mask, mask)
-    neighborhood_pixels = np.where(neighborhood > 0)
-    neighborhood_region = image[min(neighborhood_pixels[0]):max(neighborhood_pixels[0]) + 1,
-                            min(neighborhood_pixels[1]):max(neighborhood_pixels[1]) + 1]
-    
+    #neighborhood_pixels = np.where(neighborhood > 0)
+    #neighborhood_region = image[min(neighborhood_pixels[0]):max(neighborhood_pixels[0]) + 1,
+     #                      min(neighborhood_pixels[1]):max(neighborhood_pixels[1]) + 1]
     # Generate the histogram of the neighborhood
-    hist_channel_0 = cv2.calcHist([neighborhood_region], [0], None, [256], [0, 256])
-    hist_channel_1 = cv2.calcHist([neighborhood_region], [1], None, [256], [0, 256])
-    hist_channel_2 = cv2.calcHist([neighborhood_region], [2], None, [256], [0, 256])
+    hist_channel_0 = cv2.calcHist([image], [0], neighborhood, [256], [0, 256])
+    hist_channel_1 = cv2.calcHist([image], [1],neighborhood, [256], [0, 256])
+    hist_channel_2 = cv2.calcHist([image], [2],neighborhood, [256], [0, 256])
 
     # Calculate the cumulative distribution function (CDF) for each channel
-    cdf_b = hist_channel_0.cumsum() / hist_channel_0.sum()
-    cdf_g = hist_channel_1.cumsum() / hist_channel_1.sum()
-    cdf_r = hist_channel_2.cumsum() / hist_channel_2.sum()
+    cdf_channel_0 = np.cumsum(hist_channel_0) / np.sum(hist_channel_0)
+    cdf_channel_1 = np.cumsum(hist_channel_1) / np.sum(hist_channel_1)
+    cdf_channel_2 = np.cumsum(hist_channel_2) / np.sum(hist_channel_2)
 
-    # Generate random values for each channel
-    rand_vals_b = np.random.rand(mask.shape[0], mask.shape[1])
-    rand_vals_g = np.random.rand(mask.shape[0], mask.shape[1])
-    rand_vals_r = np.random.rand(mask.shape[0], mask.shape[1])
+    # Normalize the CDF values
+    cdf_channel_0 /= cdf_channel_0[-1]
+    cdf_channel_1 /= cdf_channel_1[-1]
+    cdf_channel_2 /= cdf_channel_2[-1]
 
-    # Map the random values to pixel values using the CDFs
-    pixels_b = np.interp(rand_vals_b, cdf_b, np.arange(256))
-    pixels_g = np.interp(rand_vals_g, cdf_g, np.arange(256))
-    pixels_r = np.interp(rand_vals_r, cdf_r, np.arange(256))
+    # Generate random numbers for each pixel in the mask
+    random_numbers = np.random.rand(*mask.shape[:2])
+    # Create a new image with the same shape as the original image, initialized with zeros
+    new_image = np.zeros_like(image)
 
+    # Fill the new image with possible values based on the neighborhood distribution
+    for i in range(mask.shape[0]):
+        for j in range(mask.shape[1]):
+            if mask[i, j] == 255:
+                # Get the intensity values from the random number
+                intensity_0 = np.argmax(cdf_channel_0 >= random_numbers[i, j])
+                intensity_1 = np.argmax(cdf_channel_1 >= random_numbers[i, j])
+                intensity_2 = np.argmax(cdf_channel_2 >= random_numbers[i, j])
 
-    # Create the filled mask by replacing the masked pixels with the mapped values
-    filled_mask = mask.copy()
-    # Create an RGB array of the mapped pixel values
-    rgb_pixels = np.stack((pixels_b.astype(np.uint8), pixels_g.astype(np.uint8), pixels_r.astype(np.uint8)), axis=-1)
+                # Assign the intensity values to the corresponding pixel in the new image
+                new_image[i, j, 0] = intensity_0
+                new_image[i, j, 1] = intensity_1
+                new_image[i, j, 2] = intensity_2
 
-    cropped_image = cv2.bitwise_and(image, image, mask=mask)
-    return cropped_image,mask,hist_channel_0,hist_channel_1,hist_channel_2
+    #Combine the new image with the original image to replace the object region
+    
+    result = cv2.bitwise_and(image,image,mask= cv2.bitwise_not(mask))+new_image
+    result=cv2.medianBlur(result,3)
+    cv2.imshow('new_image',new_image)
+    cv2.imshow('resultado',result)
+
+    return mask,hist_channel_0,hist_channel_1,hist_channel_2
 
 # Read video file
 video_path = "/home/enchi/Vídeos/2023_05_05_14_59_37-ball-detection.mp4"  # Replace with your video file path"
@@ -79,8 +92,8 @@ while cap.isOpened():
         break
 
     if crop_mode and len(clicked_points) >= 3:
-        cropped_frame,mask,hist0,hist1,hist2= crop_image(frame, clicked_points)
-        cv2.imshow(window_name, cropped_frame)
+        mask,hist0,hist1,hist2=crop_image(frame, clicked_points)
+        #cv2.imshow(window_name, cropped_frame)
     else:
         # Draw clicked points
         for point in clicked_points:
