@@ -36,6 +36,10 @@ patch_folder=os.path.join(script_directory, '..', 'img')
 # Get a list of all the image files in the folder
 patch_list = os.listdir(patch_folder)
 
+#Create a list
+product_list=list()
+coor_list=list()
+
 # Create an empty list to store the images
 images = []
 masks=[]
@@ -147,6 +151,48 @@ pool = Pool(num_processes)
 
 cap=cv2.VideoCapture(args.video_file)
 
+def get_real_coordinates(x_obtained,y_obtained):
+                
+        cx=cap.get(3)/2
+        cy=cap.get(4)/2
+        f=7500
+        z=50
+
+        #Function that calculated the real coordinates
+        coor_x,coor_y=x_obtained,y_obtained
+
+        u=coor_x-cx
+        v=cy-coor_y
+
+        x_global=float((u/f)*z)
+        y_global=float((-v/f)*z)  
+        z_global=50
+
+        coor_list.append((x_global,y_global))
+
+
+
+def get_cross_product(list_of_object_coordinates):
+    list_used=list_of_object_coordinates
+    for i in range(1, len(list_used)):
+        # Compute the cross product of the two consecutive elements
+        cross_product = np.cross(list_used[i - 1], list_used[i])
+        if cross_product != 0:
+            product_list.append(cross_product)
+
+    # Convert the array elements to floats and store them in a separate list
+    cross_product_values = [float(item) for item in product_list]
+
+    # Check for sign changes in the cross product values
+    sign_changes = 0
+
+    for i in range(1, len(cross_product_values)):
+        if (cross_product_values[i - 1] >= 0 and cross_product_values[i] < 0) or (cross_product_values[i - 1] <= 0 and cross_product_values[i] > 0):
+            # Sign change detected
+            sign_changes += 1
+    
+    return sign_changes,cross_product_values
+
 while(cap.isOpened()):
 
     #Got the current frame and pass on to 'frame'
@@ -188,7 +234,9 @@ while(cap.isOpened()):
     for x, y, w, h in detected_objects:
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 1)
 
+    get_real_coordinates(x,y)
    
+
     #creating rectangles by coordinates.
     for rect in rectangles:
         cv2.rectangle(frame, (rect[0], rect[1]), (rect[2], rect[3]), color=(0, 255, 0), thickness=1)
@@ -245,6 +293,14 @@ while(cap.isOpened()):
 
 # Destroy all visualisation windows
 cv2.destroyAllWindows()
+
+object_crossing, cross_product_values=get_cross_product(coor_list)
+
+# Print the cross product values
+print(cross_product_values)
+
+# Print the number of sign changes
+print('Ball crossed:', object_crossing, ' times')
 
 # Destroy 'VideoCapture' object
 cap.release()
