@@ -2,6 +2,8 @@
 # 
 # copy line to run:
 #    'python main.py --video_file  ../../2023_05_05_14_59_37-ball-detection.mp4'
+#    'python main.py --video_file  ../../2023_05_05_15_02_22-players-and-ball-detection.mp4'
+
 # ----------------------------------------------------------------
 
 
@@ -15,6 +17,8 @@ import matplotlib.pyplot as plt
 import os
 
 start_time = time.time()
+
+sign_changes = 0
 
 #Get the current script's directory
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -44,6 +48,7 @@ coor_list=list()
 images = []
 masks=[]
 
+
 # Iterate over each file
 for file_name in patch_list:
     # Construct the full file path
@@ -69,10 +74,11 @@ for file_name in patch_list:
 points = []
 mask = None
 
+        
+
 # Mouse callback function
 def mouse_callback(event, x, y, flags, param):
     global points, mask
-
 
 h_ch1_accumulated = np.zeros((256, 1), dtype=np.float32)
 h_ch2_accumulated = np.zeros((256, 1), dtype=np.float32)
@@ -168,6 +174,8 @@ def get_real_coordinates(x_obtained,y_obtained):
         y_global=float((-v/f)*z)  
         z_global=50
 
+        print(x_global,y_global,x_obtained,y_obtained)
+
         coor_list.append((x_global,y_global))
 
 
@@ -190,7 +198,7 @@ def get_cross_product(list_of_object_coordinates):
         if (cross_product_values[i - 1] >= 0 and cross_product_values[i] < 0) or (cross_product_values[i - 1] <= 0 and cross_product_values[i] > 0):
             # Sign change detected
             sign_changes += 1
-    
+              
     return sign_changes,cross_product_values
 
 while(cap.isOpened()):
@@ -202,12 +210,14 @@ while(cap.isOpened()):
     if not ret:
         print("frame missed!")
         break
-   
+
+    frame_number = cap.get(cv2.CAP_PROP_POS_FRAMES)
+
     field=cv2.bitwise_or(frame,frame,mask=field_mask)
     field_luv=cv2.cvtColor(field,cv2.COLOR_BGR2LUV)
 
-    for index,image in enumerate(images):  
-        field=cv2.bitwise_and(field,field,mask=masks[index])+image
+    for index,image in enumerate(images):
+        field=cv2.bitwise_and(field,field,mask=masks[index])
 
     field=cv2.medianBlur(field,3)
     
@@ -215,9 +225,13 @@ while(cap.isOpened()):
 
     field_hsv=cv2.cvtColor(field,cv2.COLOR_BGR2HSV)
 
-    green_segmentation=cv2.inRange(field_hsv,(34,29,110),(64,110,221))
+    green_segmentation=cv2.inRange(field_hsv,(34,26,110),(64,110,223))
 
-    result=cv2.erode(green_segmentation,np.ones((5,5)),iterations=2)
+    radius = 5
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*radius + 1, 2*radius + 1))
+
+    result=cv2.erode(green_segmentation,kernel,iterations=1)
+
 
     contours,hierarchy  = cv2.findContours(result, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -227,16 +241,13 @@ while(cap.isOpened()):
     #Defined area for objects
     for contour in contours:
         area=cv2.contourArea(contour)
-        if area<240:
+        if area<240 and area>50:
             x, y, w, h = cv2.boundingRect(contour)
             detected_objects.append((x, y, w, h))
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 1)
+            get_real_coordinates(x,y)
 
-    for x, y, w, h in detected_objects:
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 1)
-
-    get_real_coordinates(x,y)
    
-
     #creating rectangles by coordinates.
     for rect in rectangles:
         cv2.rectangle(frame, (rect[0], rect[1]), (rect[2], rect[3]), color=(0, 255, 0), thickness=1)
@@ -249,12 +260,24 @@ while(cap.isOpened()):
         h_ch2_accumulated=h_ch2_accumulated+h_2
         h_ch3_accumulated=h_ch3_accumulated+h_3
 
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    number = 10
+    text = f"Number: {number}"
+    position = (50, 50)  # (x, y) coordinates of the starting point
+    font_scale = 1.5
+    color = (0, 255, 0)  # BGR color format (green in this case)
+    thickness = 2
+    line_type = cv2.LINE_AA  # Anti-aliased line type
+    text=f"Number: {sign_changes}"
+    cv2.putText(frame,text,position,font,font_scale,color,thickness,line_type)
 
+
+    
     # Visualise the input video
     cv2.imshow('Video sequence',frame)
     cv2.imshow('field',field)
     cv2.imshow('result',result)
-    #cv2.imshow('LUB_FRAME',LUV_FRAME)
+    cv2.imshow('LUB_FRAME',green_segmentation)
     #cv2.imshow('hsv_FRAME',HSV_FRAME)
 
 
@@ -288,14 +311,12 @@ while(cap.isOpened()):
         mask = None
         points = []
 
-    sign_changes = 0
-
     # Iterate over the array elements
+    sign_changes=0
     for i in range(1, len(coor_list)):
         if (coor_list[i-1][0] >= 0 and coor_list[i][0] < 0) or (coor_list[i-1][0] <= 0 and coor_list[i][0] > 0):
             # Sign change detected
             sign_changes += 1
-
 
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -307,7 +328,9 @@ cv2.destroyAllWindows()
 # object_crossing, cross_product_values=get_cross_product(coor_list)
 
 # Print the list  of ball position coordenates
-print(coor_list)
+
+
+#print(coor_list)
 
 # Print the number of sign changes
 print('Ball crossed:', sign_changes, ' times')

@@ -20,7 +20,7 @@ def crop_image(image, points):
     mask = np.zeros(image.shape[:2], dtype=np.uint8)
     points = np.array(points)
     cv2.fillPoly(mask, [points], (255, 255, 255))
-    neighborhood_size = 25
+    neighborhood_size = 5
     dilated_mask = cv2.dilate(mask, np.ones((neighborhood_size, neighborhood_size), np.uint8))
     neighborhood = cv2.absdiff(dilated_mask, mask)
 
