@@ -20,7 +20,7 @@ def crop_image(image, points):
     mask = np.zeros(image.shape[:2], dtype=np.uint8)
     points = np.array(points)
     cv2.fillPoly(mask, [points], (255, 255, 255))
-    neighborhood_size = 5
+    neighborhood_size = 25
     dilated_mask = cv2.dilate(mask, np.ones((neighborhood_size, neighborhood_size), np.uint8))
     neighborhood = cv2.absdiff(dilated_mask, mask)
 
@@ -63,7 +63,7 @@ def crop_image(image, points):
     result = cv2.bitwise_and(image,image,mask= cv2.bitwise_not(dilated_mask))+new_image
     result=cv2.medianBlur(result,3)
     cv2.imshow('result',result)
-    return mask,hist_channel_0,hist_channel_1,hist_channel_2,new_image
+    return mask,hist_channel_0,hist_channel_1,hist_channel_2,new_image,dilated_mask
 
 # Read video file
 video_path = "/home/enchi/Vídeos/2023_05_05_14_59_37-ball-detection.mp4"  # Replace with your video file path"
@@ -88,7 +88,7 @@ while cap.isOpened():
         break
 
     if crop_mode and len(clicked_points) >= 3:
-        mask,hist0,hist1,hist2,new_image=crop_image(frame, clicked_points)
+        mask,hist0,hist1,hist2,new_image,dilated_mask=crop_image(frame, clicked_points)
         cv2.imshow('new_image',new_image)
         cv2.imshow('mask',mask)
     else:
@@ -118,9 +118,15 @@ while cap.isOpened():
             timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             save_directory = os.path.abspath(os.path.join(os.getcwd(), "..", "img"))  # Replace "desired_directory" with your desired directory name
             os.makedirs(save_directory, exist_ok=True)
-            save_path = os.path.join(save_directory, "new_image_{}.jpg".format(timestamp))
+            save_path = os.path.join(save_directory, "new_image_{}.png".format(timestamp))
             cv2.imwrite(save_path,new_image)
             print("New image saved as:", save_path)
+
+            # save_directory = os.path.abspath(os.path.join(os.getcwd(), "..", "mask"))  # Replace "desired_directory" with your desired directory name
+            # os.makedirs(save_directory, exist_ok=True)
+            # save_path = os.path.join(save_directory, "new_image_{}.png".format(timestamp))
+            # cv2.imwrite(save_path,mask)
+            # print("New image saved as:", save_path)
         else:
             print("Cannot save New image. Please enter crop mode and select at least 3 points.")
    
