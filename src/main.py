@@ -134,9 +134,6 @@ def apply_median_filter(frame,kernel):
 
 
 # Iterate through each frame of the video
-while video.isOpened():
-    ret, frame = video.read()
-    cv2.waitKey(20)
 parser = argparse.ArgumentParser(description='Vision-based object detection')
 parser.add_argument('--video_file', type=str, default='camera', help='Video file used for the object detection process')
 args = parser.parse_args()
