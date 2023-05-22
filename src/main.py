@@ -288,19 +288,30 @@ while(cap.isOpened()):
         mask = None
         points = []
 
+    sign_changes = 0
+
+    # Iterate over the array elements
+    for i in range(1, len(coor_list)):
+        if (coor_list[i-1][0] >= 0 and coor_list[i][0] < 0) or (coor_list[i-1][0] <= 0 and coor_list[i][0] > 0):
+            # Sign change detected
+            sign_changes += 1
+
+
+
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 # Destroy all visualisation windows
 cv2.destroyAllWindows()
 
-object_crossing, cross_product_values=get_cross_product(coor_list)
+# object_crossing, cross_product_values=get_cross_product(coor_list)
 
-# Print the cross product values
-print(cross_product_values)
+# Print the list  of ball position coordenates
+print(coor_list)
 
 # Print the number of sign changes
-print('Ball crossed:', object_crossing, ' times')
+print('Ball crossed:', sign_changes, ' times')
+
 
 # Destroy 'VideoCapture' object
 cap.release()
