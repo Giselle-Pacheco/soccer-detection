@@ -15,6 +15,8 @@ from multiprocessing import Pool, cpu_count
 import time
 import matplotlib.pyplot as plt
 import os
+from sklearn.linear_model import LinearRegression
+
 
 start_time = time.time()
 
@@ -24,7 +26,7 @@ sign_changes = 0
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
 # Folder containing the images (one folder behind)
-mask_folder = os.path.join(script_directory, '..', 'mask')
+mask_folder = os.path.join(script_directory, '..', 'mask2')
 
 # Get a list of all the image files in the folder
 mask_list = os.listdir(mask_folder)
@@ -35,7 +37,7 @@ mask_path = os.path.join(mask_folder, mask_list[0])
 field_mask = cv2.imread(mask_path,0)
 
 # Folder containing the images (one folder behind)
-patch_folder=os.path.join(script_directory, '..', 'img')
+patch_folder=os.path.join(script_directory, '..', 'img2')
 
 # Get a list of all the image files in the folder
 patch_list = os.listdir(patch_folder)
@@ -126,7 +128,6 @@ def get_rectangle(event,x,y,flags,params):
         top_left_pt = (min(x_init, x), min(y_init, y))
         bottom_right_pt = (max(x_init, x), max(y_init, y))
         cv2.rectangle(frame, top_left_pt, bottom_right_pt, color=(0, 255, 0), thickness=1)
-        cv2.imshow('Video sequence', frame)
         
     # Check if the left mouse button was released
     elif event == cv2.EVENT_LBUTTONUP:
@@ -201,6 +202,7 @@ def get_cross_product(list_of_object_coordinates):
               
     return sign_changes,cross_product_values
 
+
 while(cap.isOpened()):
 
     #Got the current frame and pass on to 'frame'
@@ -213,39 +215,71 @@ while(cap.isOpened()):
 
     frame_number = cap.get(cv2.CAP_PROP_POS_FRAMES)
 
-    field=cv2.bitwise_or(frame,frame,mask=field_mask)
-    field_luv=cv2.cvtColor(field,cv2.COLOR_BGR2LUV)
+    field=cv2.bitwise_and(frame,frame,mask=field_mask)
+
+    field_lab=cv2.cvtColor(field,cv2.COLOR_BGR2LAB)
+    field_hls=cv2.cvtColor(field,cv2.COLOR_BGR2HLS)
 
     for index,image in enumerate(images):
         field=cv2.bitwise_and(field,field,mask=masks[index])
 
     field=cv2.medianBlur(field,3)
     
-    field=cv2.GaussianBlur(field,(5,5),3)
+    field=cv2.GaussianBlur(field,(5,5),2)
 
     field_hsv=cv2.cvtColor(field,cv2.COLOR_BGR2HSV)
-
+    
     green_segmentation=cv2.inRange(field_hsv,(34,26,110),(64,110,223))
+    white_lines=cv2.inRange(field_hsv,(40,14,160),(66,53,250))
+   
+    green_segmentation=cv2.bitwise_or(white_lines,green_segmentation)
 
-    radius = 5
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*radius + 1, 2*radius + 1))
+    kernel = np.ones((5,5))
+    field = cv2.erode(green_segmentation,kernel,iterations=3)
 
-    result=cv2.erode(green_segmentation,kernel,iterations=1)
+    # Aplicar la dilatación
+    field = cv2.morphologyEx(field,cv2.MORPH_CLOSE,kernel)
 
+    contours,hierarchy  = cv2.findContours(field, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    contours,hierarchy  = cv2.findContours(result, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    # #array to storage the coordinates
-    detected_objects = []
+    #array to storage the coordinates
+    detected_objects_right = []
+    detected_objects_left=[]
 
     #Defined area for objects
     for contour in contours:
         area=cv2.contourArea(contour)
-        if area<240 and area>50:
+        if area<1700 and area>500:
             x, y, w, h = cv2.boundingRect(contour)
-            detected_objects.append((x, y, w, h))
+            if x>608:
+                detected_objects_right.append((x, y, w, h))
+            if x<608:
+                detected_objects_left.append((x, y, w, h))
+
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 1)
-            get_real_coordinates(x,y)
+        if area<500 and area>300:
+            (x, y), radius = cv2.minEnclosingCircle(contour)
+            center = (int(x), int(y))
+            radius = int(radius)
+
+            # Draw the circle on the output image
+            cv2.circle(frame, center, radius, (0, 0, 255), 1)
+
+    players_left=len(detected_objects_left)
+    players_right=len(detected_objects_right)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    text = f"Derecha: {players_right}"
+    text1=f"Izquierda: {players_left}"
+    position = (640, 50)  # (x, y) coordinates of the starting point
+    font_scale = 1
+    color = (0, 0,255)  # BGR color format (green in this case)
+    thickness = 1
+    line_type = cv2.LINE_AA  # Anti-aliased line type
+    cv2.putText(frame,text,position,font,font_scale,color,thickness,line_type)
+    position=(50,50)
+    cv2.putText(frame,text1,position,font,font_scale,color,thickness,line_type)
+
+            #get_real_coordinates(x,y)
 
    
     #creating rectangles by coordinates.
@@ -260,25 +294,24 @@ while(cap.isOpened()):
         h_ch2_accumulated=h_ch2_accumulated+h_2
         h_ch3_accumulated=h_ch3_accumulated+h_3
 
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    number = 10
-    text = f"Number: {number}"
-    position = (50, 50)  # (x, y) coordinates of the starting point
-    font_scale = 1.5
-    color = (0, 255, 0)  # BGR color format (green in this case)
-    thickness = 2
-    line_type = cv2.LINE_AA  # Anti-aliased line type
-    text=f"Number: {sign_changes}"
-    cv2.putText(frame,text,position,font,font_scale,color,thickness,line_type)
+    # font = cv2.FONT_HERSHEY_SIMPLEX
+    # number = 10
+    # text = f"Number: {number}"
+    # position = (50, 50)  # (x, y) coordinates of the starting point
+    # font_scale = 1.5
+    # color = (0, 255, 0)  # BGR color format (green in this case)
+    # thickness = 2
+    # line_type = cv2.LINE_AA  # Anti-aliased line type
+    # text=f"Number: {sign_changes}"
+    # cv2.putText(frame,text,position,font,font_scale,color,thickness,line_type)
 
 
     
     # Visualise the input video
     cv2.imshow('Video sequence',frame)
+    cv2.imshow('green_segmentation',green_segmentation)
     cv2.imshow('field',field)
-    cv2.imshow('result',result)
-    cv2.imshow('LUB_FRAME',green_segmentation)
-    #cv2.imshow('hsv_FRAME',HSV_FRAME)
+    cv2.imshow('hsv',field_hsv)
 
 
     # The program finishes if the key 'q' is pressed
@@ -298,8 +331,6 @@ while(cap.isOpened()):
     if mask is not None:
         frame_copy = cv2.bitwise_and(frame_copy, frame_copy, mask=mask)
 
-    # Display the resulting frame
-    cv2.imshow('Video', frame_copy)
 
     # Save the selected region to a separate image when "S" key is pressed
     if mask is not None and cv2.waitKey(1) & 0xFF == ord('s'):

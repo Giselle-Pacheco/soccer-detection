@@ -66,7 +66,7 @@ def crop_image(image, points):
     return mask,hist_channel_0,hist_channel_1,hist_channel_2,new_image,dilated_mask
 
 # Read video file
-video_path = "/home/enchi/Vídeos/2023_05_05_14_59_37-ball-detection.mp4"  # Replace with your video file path"
+video_path = "/home/enchi/Vídeos/2023_05_05_15_02_22-players-and-ball-detection.mp4"  # Replace with your video file path"
 cap = cv2.VideoCapture(video_path)
 
 # Check if video file is opened successfully
@@ -116,13 +116,13 @@ while cap.isOpened():
     if key == ord('s'):
         if crop_mode and len(clicked_points) >= 3:
             timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            save_directory = os.path.abspath(os.path.join(os.getcwd(), "..", "img"))  # Replace "desired_directory" with your desired directory name
+            save_directory = os.path.abspath(os.path.join(os.getcwd(), "..", "img2"))  # Replace "desired_directory" with your desired directory name
             os.makedirs(save_directory, exist_ok=True)
             save_path = os.path.join(save_directory, "new_image_{}.png".format(timestamp))
             cv2.imwrite(save_path,new_image)
             print("New image saved as:", save_path)
 
-            # save_directory = os.path.abspath(os.path.join(os.getcwd(), "..", "mask"))  # Replace "desired_directory" with your desired directory name
+            # save_directory = os.path.abspath(os.path.join(os.getcwd(), "..", "mask2"))  # Replace "desired_directory" with your desired directory name
             # os.makedirs(save_directory, exist_ok=True)
             # save_path = os.path.join(save_directory, "new_image_{}.png".format(timestamp))
             # cv2.imwrite(save_path,mask)
