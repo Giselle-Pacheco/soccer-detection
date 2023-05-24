@@ -6,7 +6,7 @@
 
 # ----------------------------------------------------------------
 
-
+#import the necessary packages
 import numpy as np
 import cv2
 import argparse
@@ -15,11 +15,11 @@ import time
 import matplotlib.pyplot as plt
 import os
 
+#Start counting the time
 start_time = time.time()
 
+#Define the variables
 sign_changes = 0
-
-
 
 #Get the current script's directory
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -79,6 +79,7 @@ mask = None
 def mouse_callback(event, x, y, flags, param):
     global points, mask
 
+#Define the variables for the histogram
 h_ch1_accumulated = np.zeros((256, 1), dtype=np.float32)
 h_ch2_accumulated = np.zeros((256, 1), dtype=np.float32)
 h_ch3_accumulated = np.zeros((256, 1), dtype=np.float32)
@@ -98,12 +99,14 @@ def plot_histogram(frame_used,Xinit,Yinit,Xfin,Yfin):
     #Changing the region selected to HSV
     roi=frame_used[Yinit:Yfin,Xinit:Xfin]
 
+    #Calculate the histogram
     hist_channel_1=cv2.calcHist([roi], [0], None, [256], [0, 256])
     hist_channel_2 = cv2.calcHist([roi], [1], None, [256], [0, 256])
     hist_channel_3 = cv2.calcHist([roi], [2], None, [256], [0, 256])
 
     return hist_channel_1,hist_channel_2,hist_channel_3
 
+# Mouse callback function
 def get_rectangle(event,x,y,flags,params):
     global x_init, y_init, drawing, top_left_pt, bottom_right_pt
     
@@ -130,12 +133,14 @@ def get_rectangle(event,x,y,flags,params):
     elif event == cv2.EVENT_LBUTTONUP:
         drawing = False
         rectangles.append((x_init, y_init, x, y)) 
-        
+
+# Apply a Gaussian filter with a kernel size of 5x5 and sigma value of 1
 def apply_gaussian_filter(frame,kernel,sigma):
     # Apply a Gaussian filter with a kernel size of 5x5 and sigma value of 1
     filtered_frame = cv2.GaussianBlur(frame, (kernel, kernel), sigma)
     return filtered_frame
 
+# Apply a median filter with a kernel size of 5x5
 def apply_median_filter(frame,kernel):
     filtered_frame=cv2.medianBlur(frame,kernel)
     return filtered_frame
@@ -146,6 +151,7 @@ parser = argparse.ArgumentParser(description='Vision-based object detection')
 parser.add_argument('--video_file', type=str, default='camera', help='Video file used for the object detection process')
 args = parser.parse_args()
 
+#Name the window
 cv2.namedWindow('Video sequence',cv2.WINDOW_NORMAL)
 cv2.setMouseCallback('Video sequence', get_rectangle)
 
@@ -153,8 +159,10 @@ cv2.setMouseCallback('Video sequence', get_rectangle)
 num_processes = cpu_count()
 pool = Pool(num_processes)
 
+#Open the video
 cap=cv2.VideoCapture(args.video_file)
 
+#FUNCTION TO GET THE REAL COORDINATES
 def get_real_coordinates(x_obtained,y_obtained):
                 
         cx=cap.get(3)/2
@@ -177,29 +185,6 @@ def get_real_coordinates(x_obtained,y_obtained):
         coor_list.append((x_global,y_global))
 
 
-
-def get_cross_product(list_of_object_coordinates):
-    list_used=list_of_object_coordinates
-    for i in range(1, len(list_used)):
-        # Compute the cross product of the two consecutive elements
-        cross_product = np.cross(list_used[i - 1], list_used[i])
-        if cross_product != 0:
-            product_list.append(cross_product)
-
-    # Convert the array elements to floats and store them in a separate list
-    cross_product_values = [float(item) for item in product_list]
-
-    # Check for sign changes in the cross product values
-    sign_changes = 0
-
-    for i in range(1, len(cross_product_values)):
-        if (cross_product_values[i - 1] >= 0 and cross_product_values[i] < 0) or (cross_product_values[i - 1] <= 0 and cross_product_values[i] > 0):
-            # Sign change detected
-            sign_changes += 1
-              
-    return sign_changes,cross_product_values
-
-
 while(cap.isOpened()):
 
     #Got the current frame and pass on to 'frame'
@@ -209,34 +194,40 @@ while(cap.isOpened()):
     if not ret:
         print("frame missed!")
         break
-
+    
+    #get the current frame number
     frame_number = cap.get(cv2.CAP_PROP_POS_FRAMES)
 
+    #Apply a mask to the frame
     field=cv2.bitwise_and(frame,frame,mask=field_mask)
 
+    #Convert the frame to LAB and HLS
     field_lab=cv2.cvtColor(field,cv2.COLOR_BGR2LAB)
     field_hls=cv2.cvtColor(field,cv2.COLOR_BGR2HLS)
 
+    #Iterate through the list of images
     for index,image in enumerate(images):
         field=cv2.bitwise_and(field,field,mask=masks[index])
-
+    #Apply a median filter to the frame
     field=cv2.medianBlur(field,3)
-    
+    #Apply a Gaussian filter to the frame
     field=cv2.GaussianBlur(field,(5,5),2)
-
+    #Convert the frame to HSV
     field_hsv=cv2.cvtColor(field,cv2.COLOR_BGR2HSV)
-    
+    #Apply a mask to the frame
     green_segmentation=cv2.inRange(field_hsv,(34,26,110),(64,110,223))
+    #Apply a mask to the frame
     white_lines=cv2.inRange(field_hsv,(40,14,160),(66,53,250))
-   
+    #Combine the masks
     green_segmentation=cv2.bitwise_or(white_lines,green_segmentation)
-
+    #Create a kernel
     kernel = np.ones((5,5))
+    #Apply the erosion
     field = cv2.erode(green_segmentation,kernel,iterations=3)
 
     # Aplicar la dilatación
     field = cv2.morphologyEx(field,cv2.MORPH_CLOSE,kernel)
-
+    #FIND THE CONTOURS
     contours,hierarchy  = cv2.findContours(field, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     #array to storage the coordinates
@@ -245,15 +236,20 @@ while(cap.isOpened()):
 
     #Defined area for objects
     for contour in contours:
+        #Calculate the area of the contour
         area=cv2.contourArea(contour)
+        #If the area is between 500 and 1700, draw a rectangle
         if area<1700 and area>500:
             x, y, w, h = cv2.boundingRect(contour)
+            #If the x coordinate is greater than 608, the object is on the right side
             if x>608:
                 detected_objects_right.append((x, y, w, h))
+            #If the x coordinate is less than 608, the object is on the left side
             if x<608:
                 detected_objects_left.append((x, y, w, h))
-
+            #Draw a rectangle
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 1)
+        #If the area is between 300 and 500, draw a circle
         if area<500 and area>300:
             (x, y), radius = cv2.minEnclosingCircle(contour)
             center = (int(x), int(y))
@@ -261,7 +257,8 @@ while(cap.isOpened()):
 
             # Draw the circle on the output image
             cv2.circle(frame, center, radius, (0, 0, 255), 1)
-
+            
+    #Get the number of players on each side
     players_left=len(detected_objects_left)
     players_right=len(detected_objects_right)
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -290,20 +287,7 @@ while(cap.isOpened()):
         h_ch1_accumulated=h_ch1_accumulated+h_1
         h_ch2_accumulated=h_ch2_accumulated+h_2
         h_ch3_accumulated=h_ch3_accumulated+h_3
-
-    # font = cv2.FONT_HERSHEY_SIMPLEX
-    # number = 10
-    # text = f"Number: {number}"
-    # position = (50, 50)  # (x, y) coordinates of the starting point
-    # font_scale = 1.5
-    # color = (0, 255, 0)  # BGR color format (green in this case)
-    # thickness = 2
-    # line_type = cv2.LINE_AA  # Anti-aliased line type
-    # text=f"Number: {sign_changes}"
-    # cv2.putText(frame,text,position,font,font_scale,color,thickness,line_type)
-
-
-    
+  
     # Visualise the input video
     cv2.imshow('Video sequence',frame)
     cv2.imshow('green_segmentation',green_segmentation)
@@ -353,12 +337,6 @@ while(cap.isOpened()):
 # Destroy all visualisation windows
 cv2.destroyAllWindows()
 
-# object_crossing, cross_product_values=get_cross_product(coor_list)
-
-# Print the list  of ball position coordenates
-
-
-#print(coor_list)
 
 # Print the number of sign changes
 print('Ball crossed:', sign_changes, ' times')
@@ -377,6 +355,7 @@ plt.ylabel('Frequency')
 plt.legend(['H','S','V'])
 plt.show()
 
+# Print the total time taken
 end_time = time.time()
 
 total_time = end_time - start_time
