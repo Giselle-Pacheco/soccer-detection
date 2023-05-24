@@ -7,7 +7,6 @@
 # ----------------------------------------------------------------
 
 
-
 import numpy as np
 import cv2
 import argparse
@@ -15,12 +14,12 @@ from multiprocessing import Pool, cpu_count
 import time
 import matplotlib.pyplot as plt
 import os
-from sklearn.linear_model import LinearRegression
-
 
 start_time = time.time()
 
 sign_changes = 0
+
+
 
 #Get the current script's directory
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -74,9 +73,7 @@ for file_name in patch_list:
 
 # Global variables
 points = []
-mask = None
-
-        
+mask = None       
 
 # Mouse callback function
 def mouse_callback(event, x, y, flags, param):
